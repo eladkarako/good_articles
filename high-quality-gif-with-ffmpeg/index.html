@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<!-- saved from url=(0057)http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html -->
+<html>
+  <title>High quality GIF with FFmpeg</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="stylesheet" type="text/css" href="pygments.css">
+  <meta name="keywords" content="fun, gif, ffmpeg, av">
+  <meta name="viewport" content="width=device-width">
+ </head>
+ <body>
+ <header><a href="http://blog.pkh.me/index.html">A small freedom area.</a></header>
+  <div id="content"><h1><a href="http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html#content">High quality GIF with FFmpeg</a></h1>
+<p class="date">Mon 16 Mar 2015</p>
+<p class="tags"><a href="http://blog.pkh.me/x/index-fun.html">fun</a>, <a href="http://blog.pkh.me/x/index-gif.html">gif</a>, <a href="http://blog.pkh.me/x/index-ffmpeg.html">ffmpeg</a>, <a href="http://blog.pkh.me/x/index-av.html">av</a></p><p>
+
+</p><article><p>About two years ago, I tried to improve the support of the GIF encoding in
+FFmpeg to make it at least decent. This notably led to the addition of the
+transparency mechanism in the GIF encoder. While this is not always optimal
+depending on your source, it is in the most common cases. Still, this was
+merely an attempt to prevent shaming the encoder too much.</p>
+<p>But recently at <a href="https://www.stupeflix.com/">Stupeflix</a>, we needed a way to generate high
+quality GIF for the <a href="https://itunes.apple.com/app/id945320876">Legend app</a>, so I decided to work on this
+again.</p>
+<p>All the features presented in this blog post are available in <a href="http://ffmpeg.org/download.html">FFmpeg
+2.6</a>, and will be used in the next version of Legend app (probably
+around March 26th).</p>
+<p><strong>TL;DR</strong>: go to the <a href="http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html#usage">Usage</a> section to see how to use it.</p>
+<h1>Initial improvements (2013)</h1>
+<p>Let's observe the effect of the transparency mechanism introduced in 2013 in
+the GIF encoder:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="gp">%</span> ffmpeg -v warning -ss <span class="m">45</span> -t <span class="m">2</span> -i big_buck_bunny_1080p_h264.mov -vf <span class="nv">scale</span><span class="o">=</span><span class="m">300</span>:-1 -gifflags -transdiff -y bbb-notrans.gif
+<span class="gp">%</span> ffmpeg -v warning -ss <span class="m">45</span> -t <span class="m">2</span> -i big_buck_bunny_1080p_h264.mov -vf <span class="nv">scale</span><span class="o">=</span><span class="m">300</span>:-1 -gifflags +transdiff -y bbb-trans.gif
+<span class="gp">%</span> ls -l bbb-*.gif
+<span class="go">-rw-r--r-- 1 ux ux 1.1M Mar 15 22:50 bbb-notrans.gif</span>
+<span class="go">-rw-r--r-- 1 ux ux 369K Mar 15 22:50 bbb-trans.gif</span>
+</pre></div>
+
+
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/bbb-trans.gif"></p>
+<p>This option is enabled by default, so you will only want to disable it in case
+your image has very much motion or color changes.</p>
+<p>The other implemented compression mechanism was the cropping, which is
+basically a way of allowing to redraw only a sub rectangle of the GIF and keep
+the surrounding untouched. In case of a movie, it is rarely very useful. I will
+get back to this later on.</p>
+<p>But anyway, since then, I didn't make any progress on it. And while it might
+not be that obvious in the picture above, there are quite a few shortcomings
+regarding the quality.</p>
+<h1>The 256 colors limitation</h1>
+<p>As you probably know, GIF is limited to a palette of 256 colors. And by
+default, FFmpeg just uses a generic palette that tries to cover the whole
+color space in order to support the largest variety of content:</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/default-palette.png"></p>
+<h1>Ordered and error diffusing dithering</h1>
+<p>In order to circumvent this problem, <a href="https://en.wikipedia.org/wiki/Dither">dithering</a> is used. In the
+Big Buck Bunny GIF above, the ordered bayer dithering is applied. It is easily
+recognizable by its <code  contenteditable="true" spellcheck="true" autocomplete="on">8x8</code> crosshatch pattern. While it's not the prettiest, is
+has many benefits such as being <em>predictible</em>, <em>fast</em>, and actually <em>preventing
+banding effects</em> and similar visual glitches.</p>
+<p>Most of the other dithering methods you will find out there are error based.
+The principle is that a single color error (the difference between the color
+picked in the palette and the expected one) will spread all over the image,
+causing a "swarming effect" between frames, even in areas were the source was
+completely identical between frames. While this often provides a much better
+quality, it completely kills the compression of GIF:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="gp">%</span> ffmpeg -v warning -ss <span class="m">45</span> -t <span class="m">2</span> -i big_buck_bunny_1080p_h264.mov -vf <span class="nv">scale</span><span class="o">=</span><span class="m">300</span>:-1:sws_dither<span class="o">=</span>ed -y bbb-error-diffusal.gif
+<span class="gp">%</span> ls -l bbb-error-diffusal.gif
+<span class="go">-rw-r--r-- 1 ux ux 1.3M Mar 15 23:10 bbb-error-diffusal.gif</span>
+</pre></div>
+
+
+<h1>Better palettes</h1>
+<p>The first step to improve GIF quality is to define a better palette. The GIF
+format stores a global palette, and you can re-define the palette for one
+picture (or sub-picture; each frame overlay on the previous one, but it can
+overlay at a specific offset with a smaller size). The per frame palette does
+replace the global palette <em>only for one frame</em>. As soon as you stop defining a
+palette, it will fall-back on the global one. This means that you can not
+define a palette for a range of frames like you would be tempted to do
+(typically defining a new palette at each scene change).</p>
+<p>So said differently, you will have to follow the model of one single global
+palette, or one palette per frame.</p>
+<h2>One palette per frame (not implemented)</h2>
+<p>I originally started with implementing a computation of the palette per frame,
+but this had the following drawbacks:</p>
+<ul>
+<li>The overhead: a 256 colors palette is 768B and it is not part of the
+  <a href="https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch">LZW</a> algorithm mechanism so it is not compressed. And since it had
+  to be stored at each frame, this means an overhead of 150 kbits/sec for a 25
+  FPS footage. It is mostly negligible though.</li>
+<li>My initial test was giving a brightness blinking effect because of these
+  palette changes, which wasn't pretty at all.</li>
+</ul>
+<p>These are the two reasons I didn't follow that path and decided to compute a
+global palette instead. Now that I think back, it might be relevant to retry
+that approach, because the color quantization is in a way better state than it
+was in my initial tests.</p>
+<p>It would also be possible to store the same palette at each frame for ranges of
+frames (typically at scene changes like mentioned before). Or better, only for
+the sub-rectangle that changes.</p>
+<p>All of this is left as an exercise for the reader, patch welcome. Feel free to
+contact me if you are interested in this.</p>
+<h2>One global palette (implemented)</h2>
+<p>Having one global palette means a 2-pass mechanism (unless you are willing to
+store all the video frames in memory).</p>
+<p>The first pass is the computation of a palette for the whole presentation. This
+is where the new <a href="https://ffmpeg.org/ffmpeg-filters.html#palettegen">palettegen</a> filter comes into play. The
+filter makes a histogram of all the colors of every frame, and generates a
+palette out of these.</p>
+<p>Some trivia on the technical aspect: the filter is implementing a variant of
+the algorithm from Paul Heckbert's <em>Color Image Quantization for Frame Buffer
+Display (1982)</em> paper. Here are the differences (or specificities regarding
+undefined behaviour in the paper) I remember doing:</p>
+<ul>
+<li>It's using a full resolution color histograms. So instead of using a
+  histogram of down-sampled RGB 5:5:5 as key as suggested in the paper, the
+  filter uses a hash table for the 16 million of possible RGB 8:8:8 colors.</li>
+<li>The segmentation of the box is still done at the median point, but the
+  selection of the box to split is done according to the variance of the colors
+  in the box (a box with a larger variance of colors will be preferred for the
+  cut-off).</li>
+<li>This was not defined in the paper as far as I could tell, but the averaging
+  of the colors in the box is done depending on the importance of the color.</li>
+<li>When splitting a box along an axis (red, green or blue), in case of equality
+  green is preferred over red, which is in turn preferred over blue.</li>
+</ul>
+<p>So anyway, this filter does the color quantization, and generate a palette
+(generally saved into a <code  contenteditable="true" spellcheck="true" autocomplete="on">PNG</code> file).</p>
+<p>It will typically look like this (upscaled):</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/bbb-palettegen.png"></p>
+<h1>Color mapping and dithering</h1>
+<p>The second pass is then handled by the <a href="https://ffmpeg.org/ffmpeg-filters.html#paletteuse">paletteuse</a> filter,
+which as you guessed from the name will use that palette to generate the final
+color quantized stream. Its task is to find the most appropriate color in the
+generated palette to represent the input color. This is also where you will
+decide which dithering method to use.</p>
+<p>And again some trivia on the technical aspect:</p>
+<ul>
+<li>While the original paper proposes only one dithering method, the filter
+  implements 5 of them.</li>
+<li>Just like <code  contenteditable="true" spellcheck="true" autocomplete="on">palettegen</code>, the color resolution (mapping the 24-bit input color
+  to a palette entry) is done without destruction of the input. It is achieved
+  through an iterative implementation of <a href="https://en.wikipedia.org/wiki/K-d_tree">K-d Tree</a> (with K=3
+  obviously, one dimension for each of the RGB components) and a cache system.</li>
+</ul>
+<p>Using these two filters will allow you to encode GIF like this (single global
+palette, no dithering):</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/bbb-nodither.gif"></p>
+<p><a name="usage"></a></p>
+<h1>Usage</h1>
+<p>Running the 2 passes manually with the same parameters can be a bit annoying to
+adjust the parameters for each pass, so I recommend to write a simple script
+such as:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="ch">#!/bin/sh</span>
+
+<span class="nv">palette</span><span class="o">=</span><span class="s2">"/tmp/palette.png"</span>
+
+<span class="nv">filters</span><span class="o">=</span><span class="s2">"fps=15,scale=320:-1:flags=lanczos"</span>
+
+ffmpeg -v warning -i <span class="nv">$1</span> -vf <span class="s2">"</span><span class="nv">$filters</span><span class="s2">,palettegen"</span> -y <span class="nv">$palette</span>
+ffmpeg -v warning -i <span class="nv">$1</span> -i <span class="nv">$palette</span> -lavfi <span class="s2">"</span><span class="nv">$filters</span><span class="s2"> [x]; [x][1:v] paletteuse"</span> -y <span class="nv">$2</span>
+</pre></div>
+
+
+<p>...which can be used like this:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="gp">%</span> ./gifenc.sh video.mkv anim.gif
+</pre></div>
+
+
+<p>The <code  contenteditable="true" spellcheck="true" autocomplete="on">filters</code> variable contains here:</p>
+<ul>
+<li>an adjustment of the frames per second (reduced to 15 can make it visually
+  jerky but will make the final GIF smaller)</li>
+<li>a scale using <code  contenteditable="true" spellcheck="true" autocomplete="on">lanczos</code> scaler instead of the default (<code  contenteditable="true" spellcheck="true" autocomplete="on">bilinear</code> currently).
+  It is recommended that you rescale using <code  contenteditable="true" spellcheck="true" autocomplete="on">lanczos</code> or <code  contenteditable="true" spellcheck="true" autocomplete="on">bicubic</code> as they are
+  far superior to <code  contenteditable="true" spellcheck="true" autocomplete="on">bilinear</code>. Your input will very likely be more blurry if you
+  don't.</li>
+</ul>
+<h2>Extracting just a sample</h2>
+<p>It is unlikely that you will encode a complete movie, so you might be tempted
+to use <code  contenteditable="true" spellcheck="true" autocomplete="on">-ss</code> and <code  contenteditable="true" spellcheck="true" autocomplete="on">-t</code> (or similar) options to select a segment. If you do that,
+be very sure to have both as <em>input options</em> (before the <code  contenteditable="true" spellcheck="true" autocomplete="on">-i</code>). For example:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="ch">#!/bin/sh</span>
+
+<span class="nv">start_time</span><span class="o">=</span><span class="m">12</span>:23
+<span class="nv">duration</span><span class="o">=</span><span class="m">35</span>
+
+<span class="nv">palette</span><span class="o">=</span><span class="s2">"/tmp/palette.png"</span>
+
+<span class="nv">filters</span><span class="o">=</span><span class="s2">"fps=15,scale=320:-1:flags=lanczos"</span>
+
+ffmpeg -v warning -ss <span class="nv">$start_time</span> -t <span class="nv">$duration</span> -i <span class="nv">$1</span> -vf <span class="s2">"</span><span class="nv">$filters</span><span class="s2">,palettegen"</span> -y <span class="nv">$palette</span>
+ffmpeg -v warning -ss <span class="nv">$start_time</span> -t <span class="nv">$duration</span> -i <span class="nv">$1</span> -i <span class="nv">$palette</span> -lavfi <span class="s2">"</span><span class="nv">$filters</span><span class="s2"> [x]; [x][1:v] paletteuse"</span> -y <span class="nv">$2</span>
+</pre></div>
+
+
+<p>If you don't, it will cause problem at least for the first pass where the
+output will never have more than one frame (the palette), so that won't do what
+you want.</p>
+<p>One alternative is to pre-extract with stream copy the sample you want to
+encode, with something like:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="gp">%</span> ffmpeg -ss <span class="m">12</span>:23 -t <span class="m">35</span> -i full.mkv -c:v copy -map <span class="m">0</span>:v -y video.mkv
+</pre></div>
+
+
+<p>If the stream copy is not accurate enough, you can then add a <a href="http://ffmpeg.org/ffmpeg-filters.html#trim">trim</a>
+filter. For example:</p>
+<div class="codehilite"><pre  contenteditable="true" spellcheck="true" autocomplete="on"><span></span><span class="nv">filters</span><span class="o">=</span><span class="s2">"trim=start_frame=12:end_frame=431,fps=15,scale=320:-1:flags=lanczos"</span>
+</pre></div>
+
+
+<h2>Getting the best out of the palette generation</h2>
+<p>Now we can start looking at the fun part. In the <code  contenteditable="true" spellcheck="true" autocomplete="on">palettegen</code> filter, the main
+and probably only tweaking you will want to play with is the <code  contenteditable="true" spellcheck="true" autocomplete="on">stats_mode</code>
+option.</p>
+<p>This option will basically allow you to specify if you are more interested in
+the whole/overall video, or only what's moving. If you use <code  contenteditable="true" spellcheck="true" autocomplete="on">stats_mode=full</code>
+(the default), all pixels will be part of the color statistics. If you use
+<code  contenteditable="true" spellcheck="true" autocomplete="on">stats_mode=diff</code>, only for the pixel that differs from previous frame will be
+accounted.</p>
+<p><em>Note</em>: to add options to a filter, use it like this:
+<code  contenteditable="true" spellcheck="true" autocomplete="on">thefilter=opt1=value1:opt2=value2</code></p>
+<p>Following is an example to illustrate how it affects the final output:</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/legend-stats-mode-full.gif">
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/legend-stats-mode-diff.gif"></p>
+<p>The first GIF is using <code  contenteditable="true" spellcheck="true" autocomplete="on">stats_mode=full</code> (the default). The background doesn't
+change for the whole presentation, as a result the sky gets a lot of attention
+color wise. On the other hand, the moving text ends up with a very limited
+subset of colors. As a result, the fade out of the text gets hurt:</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/zoom-full.png"></p>
+<p>On the other hand, the second GIF is using <code  contenteditable="true" spellcheck="true" autocomplete="on">stats_mode=diff</code>, which is favoring
+what's moving. And indeed, the fade out of the text is much better, at the cost
+of dithering glitches in the sky:</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/zoom-diff.png"></p>
+<h2>Getting the best out of the color mapping</h2>
+<p>The <code  contenteditable="true" spellcheck="true" autocomplete="on">paletteuse</code> filter has slightly more options to play with. The most
+obvious one is the dithering (<code  contenteditable="true" spellcheck="true" autocomplete="on">dither</code> option). The only predictable dithering
+available is <code  contenteditable="true" spellcheck="true" autocomplete="on">bayer</code>, all the others are error diffusion based.</p>
+<p>If you do want to use <code  contenteditable="true" spellcheck="true" autocomplete="on">bayer</code> (because you have a high speed or size issue),
+you can play with the <code  contenteditable="true" spellcheck="true" autocomplete="on">bayer_scale</code> option to lower or increase its crosshatch
+pattern.</p>
+<p>Of course, you can also completely disable the dithering by using
+<code  contenteditable="true" spellcheck="true" autocomplete="on">dither=none</code>.</p>
+<p>Concerning the error diffusal dithering, you will want to play with
+<code  contenteditable="true" spellcheck="true" autocomplete="on">floyd_steinberg</code>, <code  contenteditable="true" spellcheck="true" autocomplete="on">sierra2</code> and <code  contenteditable="true" spellcheck="true" autocomplete="on">sierra2_4a</code>. For more details on these, I'm
+redirecting you to <a href="http://www.efg2.com/Lab/Library/ImageProcessing/DHALF.TXT">DHALF.TXT</a>.</p>
+<p>For the lazy, <code  contenteditable="true" spellcheck="true" autocomplete="on">floyd_steinberg</code> is one of the most popular, and <code  contenteditable="true" spellcheck="true" autocomplete="on">sierra2_4a</code> is
+a fast/smaller version of <code  contenteditable="true" spellcheck="true" autocomplete="on">sierra2</code> (and is the default), diffusing through 3
+pixels instead of 7. <code  contenteditable="true" spellcheck="true" autocomplete="on">heckbert</code> is the one documented in the paper I mentioned
+previously, and is just included as a reference (you probably won't want it).</p>
+<p>Here is a small preview of different dithering modes:</p>
+<p><em>original</em> (31.82K) :
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn.jpg"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=bayer:bayer_scale=1</code> (132.80K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_bayer_bayer_scale_1.gif"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=bayer:bayer_scale=2</code> (118.80K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_bayer_bayer_scale_2.gif"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=bayer:bayer_scale=3</code> (103.11K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_bayer_bayer_scale_3.gif"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=floyd_steinberg</code> (101.78K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_floyd_steinberg.gif"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=sierra2</code> (89.98K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_sierra2.gif"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=sierra2_4a</code> (109.60K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_sierra2_4a.gif"></p>
+<p><code  contenteditable="true" spellcheck="true" autocomplete="on">dither=none</code> (73.10K):
+<img alt="centerimg" src="./High quality GIF with FFmpeg_files/knn_dither_none.gif"></p>
+<p>Finally, after playing with the dithering, you might be interested to learn
+about the option <code  contenteditable="true" spellcheck="true" autocomplete="on">diff_mode</code>. To quote the documentation:</p>
+<blockquote>
+<p>Only the changing rectangle will be reprocessed. This is similar to GIF
+cropping/offsetting compression mechanism. This option can be useful for
+speed if only a part of the image is changing, and has use cases such as
+limiting the scope of the error diffusal dither to the rectangle that bounds
+the moving scene (it leads to more deterministic output if the scene doesn't
+change much, and as a result less moving noise and better GIF compression).</p>
+</blockquote>
+<p>Or said differently: if you want to use error diffusion dithering on your image
+for the background even though it's static, enable this option to limit the
+spreading of the error all over the picture. Here is a typical case where it's
+relevant:</p>
+<p><img alt="centerimg" src="./High quality GIF with FFmpeg_files/legend-sage.gif"></p>
+<p>Notice how the dithering on the face of the monkey changes only when both top
+and bottom texts are moving at the same time (that is, in the very last frames
+here).</p></article>
+<p id="idxurl"><a href="http://blog.pkh.me/index.html">index</a></p></div>
+ <footer>
+  <a href="http://ubitux.fr/">www/misc</a>
+  | mail+jabber: <i>u pkh.me</i>
+  | irc: <i>ubitux@<a href="http://freenode.net/">freenode</a>/<a href="http://yozora-irc.net/">yozora</a></i>
+ </footer>
+</body></html>
