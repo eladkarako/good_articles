@@ -1,0 +1,117 @@
+@charset "UTF-8";
+@namespace "http://www.w3.org/1999/xhtml";
+
+html{
+  font-family:       sans-serif;
+  font-size:         25pt;
+}
+
+html,body{
+  height:            100%;
+}
+
+html,body,img{
+  width:             100%;
+
+  padding:           0px;
+  margin:            0px;
+
+  text-align:        center;
+  vertical-align:    top;
+
+  box-sizing:        border-box;
+  background-origin: border-box;
+  background-clip:   border-box;
+
+  border-collapse:   collapse;
+  border:            1px none lightgray;
+  outline:           1px none lightgray;
+
+  border-spacing: 0px;
+        border-horizontal-spacing: 0px;
+     -o-border-horizontal-spacing: 0px;
+    -ms-border-horizontal-spacing: 0px;
+   -moz-border-horizontal-spacing: 0px;
+ -khtml-border-horizontal-spacing: 0px;
+-webkit-border-horizontal-spacing: 0px;
+        border-vertical-spacing: 0px;
+     -o-border-vertical-spacing: 0px;
+    -ms-border-vertical-spacing: 0px;
+   -moz-border-vertical-spacing: 0px;
+ -khtml-border-vertical-spacing: 0px;
+-webkit-border-vertical-spacing: 0px;
+
+        text-rendering: optimizeSpeed;
+        text-rendering: optimizeSpeed;
+     -o-text-rendering: optimizeSpeed;
+    -ms-text-rendering: optimizeSpeed;
+   -moz-text-rendering: optimizeSpeed;
+ -khtml-text-rendering: optimizeSpeed;
+-webkit-text-rendering: optimizeSpeed;
+        font-feature-settings:  'c2sc' 0, 'calt' 0, 'case' 0, 'dlig' 0, 'fina' 0, 'frac' 0, 'hist' 0, 'hlig' 0, 'init' 0, 'isol' 0, 'kern' 0, 'liga' 0, 'lnum' 0, 'locl' 0, 'mark' 0, 'medi' 0, 'mkmk' 0, 'onum' 0, 'rlig' 0, 'smcp' 0, 'ss**' 0, 'subs' 0, 'sups' 0, 'swsh' 0, 'tnum' 0, 'zero' 0;
+     -o-font-feature-settings:  'c2sc' 0, 'calt' 0, 'case' 0, 'dlig' 0, 'fina' 0, 'frac' 0, 'hist' 0, 'hlig' 0, 'init' 0, 'isol' 0, 'kern' 0, 'liga' 0, 'lnum' 0, 'locl' 0, 'mark' 0, 'medi' 0, 'mkmk' 0, 'onum' 0, 'rlig' 0, 'smcp' 0, 'ss**' 0, 'subs' 0, 'sups' 0, 'swsh' 0, 'tnum' 0, 'zero' 0;
+    -ms-font-feature-settings:  'c2sc' 0, 'calt' 0, 'case' 0, 'dlig' 0, 'fina' 0, 'frac' 0, 'hist' 0, 'hlig' 0, 'init' 0, 'isol' 0, 'kern' 0, 'liga' 0, 'lnum' 0, 'locl' 0, 'mark' 0, 'medi' 0, 'mkmk' 0, 'onum' 0, 'rlig' 0, 'smcp' 0, 'ss**' 0, 'subs' 0, 'sups' 0, 'swsh' 0, 'tnum' 0, 'zero' 0;
+   -moz-font-feature-settings:  'c2sc' 0, 'calt' 0, 'case' 0, 'dlig' 0, 'fina' 0, 'frac' 0, 'hist' 0, 'hlig' 0, 'init' 0, 'isol' 0, 'kern' 0, 'liga' 0, 'lnum' 0, 'locl' 0, 'mark' 0, 'medi' 0, 'mkmk' 0, 'onum' 0, 'rlig' 0, 'smcp' 0, 'ss**' 0, 'subs' 0, 'sups' 0, 'swsh' 0, 'tnum' 0, 'zero' 0;
+ -khtml-font-feature-settings:  'c2sc' 0, 'calt' 0, 'case' 0, 'dlig' 0, 'fina' 0, 'frac' 0, 'hist' 0, 'hlig' 0, 'init' 0, 'isol' 0, 'kern' 0, 'liga' 0, 'lnum' 0, 'locl' 0, 'mark' 0, 'medi' 0, 'mkmk' 0, 'onum' 0, 'rlig' 0, 'smcp' 0, 'ss**' 0, 'subs' 0, 'sups' 0, 'swsh' 0, 'tnum' 0, 'zero' 0;
+-webkit-font-feature-settings:  'c2sc' 0, 'calt' 0, 'case' 0, 'dlig' 0, 'fina' 0, 'frac' 0, 'hist' 0, 'hlig' 0, 'init' 0, 'isol' 0, 'kern' 0, 'liga' 0, 'lnum' 0, 'locl' 0, 'mark' 0, 'medi' 0, 'mkmk' 0, 'onum' 0, 'rlig' 0, 'smcp' 0, 'ss**' 0, 'subs' 0, 'sups' 0, 'swsh' 0, 'tnum' 0, 'zero' 0;
+
+                 resize: none;
+              user-drag: none;
+           -o-user-drag: none;
+          -ms-user-drag: none;
+         -moz-user-drag: none;
+       -khtml-user-drag: none;
+      -webkit-user-drag: none;
+            user-select: none;
+         -o-user-select: none;
+        -ms-user-select: none;
+       -moz-user-select: none;
+     -khtml-user-select: none;
+    -webkit-user-select: none;
+              user-zoom: none;
+           -o-user-zoom: none;
+          -ms-user-zoom: none;
+         -moz-user-zoom: none;
+       -khtml-user-zoom: none;
+      -webkit-user-zoom: none;
+        scroll-behavior: auto;
+     -o-scroll-behavior: auto;
+    -ms-scroll-behavior: auto;
+   -moz-scroll-behavior: auto;
+ -khtml-scroll-behavior: auto;
+-webkit-scroll-behavior: auto;
+        overflow-scrolling: auto; /*scroll instant stop when leave touch or scroll-button.*/
+     -o-overflow-scrolling: auto;
+    -ms-overflow-scrolling: auto;
+   -moz-overflow-scrolling: auto;
+ -khtml-overflow-scrolling: auto;
+-webkit-overflow-scrolling: auto;
+
+         font-smooth: never;
+      -o-font-smooth: never;
+     -ms-font-smooth: never;
+    -moz-font-smooth: never;
+-moz-osx-font-smooth: never;
+  -khtml-font-smooth: never;
+ -webkit-font-smooth: never;
+         font-smoothing: none;
+      -o-font-smoothing: none;
+     -ms-font-smoothing: none;
+-moz-osx-font-smoothing: unset;
+-moz-osx-font-smoothing: none;   /*this may fail but if so, the "unset" will activate.*/
+    -moz-font-smoothing: unset;
+    -moz-font-smoothing: none;   /*this may fail but if so, the "unset" will activate.*/
+  -khtml-font-smoothing: none;
+ -webkit-font-smoothing: none;
+}
+
+
+body{
+  overflow:         visible;
+}
+html{
+  overflow:            auto;
+  word-break:        normal;
+  overflow-wrap: break-word;
+  word-wrap:     break-word;
+}
